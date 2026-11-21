@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.db
+.env
+.pytest_cache/
+.venv/
+__pycache__/
+*.db
+.env
+.pytest_cache/
+.DS_Store
+.vscode/

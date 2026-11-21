@@ -1,0 +1,28 @@
+# Runs two containers together: the app and a PostgreSQL database
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: meetup
+      POSTGRES_PASSWORD: meetup
+      POSTGRES_DB: meetup
+    volumes:
+      - db-data:/var/lib/postgresql/data   # keeps data when containers restart
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meetup"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://meetup:meetup@db:5432/meetup
+    depends_on:
+      db:
+        condition: service_healthy   # wait until the database is ready
+
+volumes:
+  db-data:
