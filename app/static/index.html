@@ -21,6 +21,7 @@
       --radius-control: 10px;
     }
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body {
       margin: 0;
       font-family: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
@@ -97,8 +98,7 @@
     .count strong { color: var(--ink); }
     .count.full strong { color: var(--danger); }
 
-    /* RSVP form */
-    .rsvp { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 18px; }
+    /* Form controls */
     input, button { font: inherit; }
     input {
       width: 100%;
@@ -160,6 +160,34 @@
     .host .msg.error { color: #fdba74; }
     .pair { display: grid; grid-template-columns: 1fr 96px; gap: 10px; }
 
+    /* Account area */
+    .account { display: flex; align-items: center; gap: 12px; }
+    .account img, .account .avatar {
+      width: 38px; height: 38px; border-radius: 50%; object-fit: cover;
+      display: grid; place-items: center; background: var(--ink); color: #fff; font-weight: 700; font-size: 0.85rem;
+    }
+    .account .who { line-height: 1.2; }
+    .account .who small { display: block; color: var(--slate); font-size: 0.85rem; }
+    .btn-link {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 11px 18px; border-radius: var(--radius-control);
+      background: var(--ink); color: #fff; font-weight: 700; text-decoration: none; white-space: nowrap;
+    }
+    .btn-link:hover { background: #22305a; }
+    .btn-quiet { background: transparent; color: var(--slate); border: 1.5px solid var(--line); padding: 8px 14px; }
+    .btn-quiet:hover { background: #fff; color: var(--ink); }
+    .host .btn-link { background: var(--marigold); color: var(--ink); width: 100%; }
+    .host .btn-link:hover { background: #ffbb1f; }
+    .action { margin-top: 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .going {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-radius: var(--radius-control);
+      background: #e6f4f1; color: var(--teal); font-weight: 700;
+    }
+    .host-line { margin: 2px 0 0; font-size: 0.9rem; color: var(--slate); }
+    .banner { margin: -16px 0 28px; padding: 12px 16px; border-radius: var(--radius-control); background: #fff1e6; color: var(--danger); }
+    .events-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+
     .empty {
       border: 2px dashed var(--line);
       border-radius: var(--radius-ticket);
@@ -178,8 +206,8 @@
       .stub .day { font-size: 2.1rem; }
       .stub .time { font-size: 0.78rem; text-align: center; }
       .ticket-body { padding: 18px; }
-      .rsvp { grid-template-columns: 1fr; }
       .legend { display: none; }
+      .account .who { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       .seat.just-taken { animation: none; }
@@ -193,22 +221,27 @@
         <h1>Meetup RSVP</h1>
         <p>Know who's coming before the doors open. One seat per person, and never more people than chairs.</p>
       </div>
-      <div class="legend" aria-hidden="true">
-        <span><span class="seat taken"></span>Taken</span>
-        <span><span class="seat"></span>Open</span>
-      </div>
+      <div class="account" id="account"></div>
     </header>
+    <p class="banner" id="banner" role="alert" hidden></p>
 
     <div class="layout">
       <main>
-        <h2 class="events-heading">Upcoming events</h2>
+        <div class="events-top">
+          <h2 class="events-heading">Upcoming events</h2>
+          <div class="legend" aria-hidden="true">
+            <span><span class="seat taken"></span>Taken</span>
+            <span><span class="seat"></span>Open</span>
+          </div>
+        </div>
         <div id="events" aria-live="polite"><p class="empty">Loading events…</p></div>
       </main>
 
       <aside class="host">
         <h2>Host an event</h2>
         <p class="hint">Set the room size. RSVPs close by themselves when it's full.</p>
-        <form id="create-form">
+        <div id="host-signin" hidden></div>
+        <form id="create-form" hidden>
           <label>Event name
             <input name="title" placeholder="Python Meetup Mumbai" required maxlength="200">
           </label>
@@ -233,6 +266,7 @@
   <script>
     const MAX_SEAT_ICONS = 60;
     const eventsEl = document.getElementById("events");
+    let me = { user: null, google_configured: false };
     let lastRsvpEventId = null;
 
     function showMessage(el, text, kind) {
@@ -244,7 +278,7 @@
       const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const detail = Array.isArray(data.detail) ? "Check the highlighted fields and try again." : data.detail;
+        const detail = Array.isArray(data.detail) ? "Check the form fields and try again." : data.detail;
         throw new Error(detail || "That didn't work. Try again.");
       }
       return data;
@@ -252,6 +286,66 @@
 
     function initials(name) {
       return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    }
+
+    function signInLink(label) {
+      const a = document.createElement("a");
+      a.className = "btn-link";
+      a.href = "/login";
+      a.textContent = label;
+      return a;
+    }
+
+    function renderAccount() {
+      const box = document.getElementById("account");
+      box.innerHTML = "";
+      if (me.user) {
+        let pic;
+        if (me.user.picture) {
+          pic = document.createElement("img");
+          pic.src = me.user.picture;
+          pic.alt = "";
+          pic.referrerPolicy = "no-referrer";
+        } else {
+          pic = document.createElement("span");
+          pic.className = "avatar";
+          pic.textContent = initials(me.user.name);
+        }
+        const who = document.createElement("div");
+        who.className = "who";
+        who.textContent = me.user.name;
+        const email = document.createElement("small");
+        email.textContent = me.user.email;
+        who.appendChild(email);
+        const out = document.createElement("button");
+        out.className = "btn-quiet";
+        out.textContent = "Sign out";
+        out.addEventListener("click", async () => {
+          await request("/logout", { method: "POST" });
+          await refresh();
+        });
+        box.append(pic, who, out);
+      } else if (me.google_configured) {
+        box.appendChild(signInLink("Sign in with Google"));
+      }
+
+      // Host panel: form when signed in, sign-in button otherwise.
+      const form = document.getElementById("create-form");
+      const prompt = document.getElementById("host-signin");
+      form.hidden = !me.user;
+      document.getElementById("create-msg").textContent = "";
+      prompt.hidden = !!me.user;
+      prompt.innerHTML = "";
+      if (!me.user) {
+        prompt.appendChild(
+          me.google_configured
+            ? signInLink("Sign in with Google to host")
+            : Object.assign(document.createElement("p"), {
+                className: "hint",
+                textContent: "Sign-in isn't set up yet. Add your Google keys to .env and restart.",
+              })
+        );
+      }
     }
 
     function seatVisual(event, taken, animateLast) {
@@ -291,13 +385,10 @@
         <div class="ticket-body">
           <h3></h3>
           <p class="venue"></p>
+          <p class="host-line"></p>
           <div class="seat-slot"></div>
           <p class="count ${full ? "full" : ""}"></p>
-          ${full ? "" : `<form class="rsvp">
-            <input name="name" placeholder="Your name" aria-label="Your name" required maxlength="100">
-            <input name="email" type="email" placeholder="Your email" aria-label="Your email" required maxlength="254">
-            <button type="submit">Reserve seat</button>
-          </form>`}
+          <div class="action"></div>
           <p class="msg" role="status"></p>
           <div class="people"></div>
         </div>`;
@@ -308,10 +399,38 @@
       el.querySelector(".time").textContent = start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       el.querySelector("h3").textContent = event.title;
       el.querySelector(".venue").textContent = event.venue;
+      el.querySelector(".host-line").textContent = event.you_are_hosting ? "You're hosting this one" : "Hosted by " + event.host_name;
       el.querySelector(".seat-slot").replaceWith(seatVisual(event, taken, lastRsvpEventId === event.id));
       el.querySelector(".count").innerHTML = full
         ? `<strong>Full.</strong> All ${event.capacity} seats are taken.`
         : `<strong>${event.seats_left} of ${event.capacity}</strong> seats open`;
+
+      const action = el.querySelector(".action");
+      const msg = el.querySelector(".msg");
+      if (event.you_are_going) {
+        action.innerHTML = '<span class="going">✓ You\'re going</span>';
+      } else if (full) {
+        action.remove();
+      } else if (!me.user) {
+        if (me.google_configured) action.appendChild(signInLink("Sign in to reserve a seat"));
+        else action.remove();
+      } else {
+        const btn = document.createElement("button");
+        btn.textContent = "Reserve my seat";
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try {
+            await request(`/events/${event.id}/rsvp`, { method: "POST" });
+            lastRsvpEventId = event.id;
+            await loadEvents();
+            lastRsvpEventId = null;
+          } catch (err) {
+            btn.disabled = false;
+            showMessage(msg, err.message, "error");
+          }
+        });
+        action.appendChild(btn);
+      }
 
       const peopleEl = el.querySelector(".people");
       if (people.length > 0) {
@@ -330,21 +449,6 @@
         peopleEl.append(faces, label);
       }
 
-      const form = el.querySelector(".rsvp");
-      const msg = el.querySelector(".msg");
-      if (form) form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const body = Object.fromEntries(new FormData(form));
-        try {
-          await request(`/events/${event.id}/rsvp`, { method: "POST", body: JSON.stringify(body) });
-          lastRsvpEventId = event.id;
-          await loadEvents();
-          lastRsvpEventId = null;
-        } catch (err) {
-          showMessage(msg, err.message, "error");
-        }
-      });
-
       return el;
     }
 
@@ -353,10 +457,16 @@
       const attendeeLists = await Promise.all(events.map((ev) => request(`/events/${ev.id}/attendees`)));
       eventsEl.innerHTML = "";
       if (events.length === 0) {
-        eventsEl.innerHTML = '<p class="empty">No events yet. Create one with the form, and it will show up here for people to RSVP.</p>';
+        eventsEl.innerHTML = '<p class="empty">No events yet. Sign in and create one, and it will show up here for people to RSVP.</p>';
         return;
       }
       events.forEach((ev, i) => eventsEl.appendChild(ticket(ev, attendeeLists[i])));
+    }
+
+    async function refresh() {
+      me = await request("/me");
+      renderAccount();
+      await loadEvents();
     }
 
     document.getElementById("create-form").addEventListener("submit", async (e) => {
@@ -375,7 +485,18 @@
       }
     });
 
-    loadEvents().catch(() => {
+    // Explain a failed Google sign-in, then tidy the address bar.
+    const loginResult = new URLSearchParams(location.search).get("login");
+    if (loginResult) {
+      const banner = document.getElementById("banner");
+      banner.textContent = loginResult === "unverified"
+        ? "That Google account's email isn't verified, so it can't be used to sign in."
+        : "Google sign-in didn't finish. Try signing in again.";
+      banner.hidden = false;
+      history.replaceState(null, "", "/");
+    }
+
+    refresh().catch(() => {
       eventsEl.innerHTML = '<p class="empty">Couldn\'t load events. Check that the server is running, then refresh.</p>';
     });
   </script>

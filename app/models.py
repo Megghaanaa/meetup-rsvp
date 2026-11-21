@@ -14,6 +14,8 @@ class Event(Base):
     venue: Mapped[str] = mapped_column(String(200))
     starts_at: Mapped[datetime]
     capacity: Mapped[int]
+    host_email: Mapped[str] = mapped_column(String(254))
+    host_name: Mapped[str] = mapped_column(String(100))
 
     rsvps: Mapped[list["Rsvp"]] = relationship(back_populates="event", cascade="all, delete-orphan")
 

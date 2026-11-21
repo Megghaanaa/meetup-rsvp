@@ -2,5 +2,7 @@ fastapi
 uvicorn
 sqlalchemy
 psycopg[binary]
-pytest
+authlib
 httpx
+itsdangerous
+python-dotenv

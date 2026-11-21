@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class EventCreate(BaseModel):
@@ -11,18 +11,13 @@ class EventCreate(BaseModel):
 
 
 class EventOut(EventCreate):
-    model_config = ConfigDict(from_attributes=True)
-
     id: int
     seats_left: int
+    host_name: str
+    you_are_going: bool
+    you_are_hosting: bool
 
 
-class RsvpCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=254)
-
-
-class RsvpOut(RsvpCreate):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
+class AttendeeOut(BaseModel):
+    # Names only: attendee emails are never shown publicly.
+    name: str
