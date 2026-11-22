@@ -1,0 +1,29 @@
+# Production additions, used together with docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  app:
+    # Trust Caddy's X-Forwarded-* headers so the app knows requests arrived over HTTPS
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
+              "--proxy-headers", "--forwarded-allow-ips", "*"]
+    ports: !reset []   # not reachable from outside; only Caddy talks to it
+    restart: unless-stopped
+
+  db:
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data   # keeps the HTTPS certificate across restarts
+    depends_on:
+      - app
+
+volumes:
+  caddy-data:

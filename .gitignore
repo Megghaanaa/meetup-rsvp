@@ -3,10 +3,13 @@ __pycache__/
 *.db
 .env
 .pytest_cache/
-.venv/
-__pycache__/
-*.db
-.env
-.pytest_cache/
 .DS_Store
 .vscode/
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+*.tfvars
+!*.tfvars.example
