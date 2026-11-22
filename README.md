@@ -1,6 +1,5 @@
 # 🎟️ Meetup RSVP
-
-[![CI](https://github.com/Megghaanaa/meetup-rsvp/actions/workflows/ci.yml/badge.svg)](https://github.com/Megghaanaa/meetup-rsvp/actions/workflows/ci.yml)
+[![CI](https://github.com/Megghaanaa/meetup-rsvp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Megghaanaa/meetup-rsvp/actions/workflows/ci.yml)
 
 > **Know who's coming before the doors open.**
 > One seat per person, and never more people than chairs. 🪑
