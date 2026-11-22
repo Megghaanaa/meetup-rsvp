@@ -8,7 +8,7 @@ I host tech and cultural meetups, and every time it went the same way: a Google 
 
 So I built this. 🎉
 
-![Meetup RSVP screenshot](docs/screenshot.png)
+Meetup RSVP
 
 ---
 
