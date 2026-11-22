@@ -135,16 +135,47 @@ Names and titles go into the page with `textContent`, so nobody can sneak a `<sc
 **Known trade-off: the seat check isn't fully race-proof yet.**
 If two *different* people grab the very last seat at the same instant, both could get in. The fix is a row lock (`SELECT ... FOR UPDATE`) or an atomic counter in PostgreSQL. It's on the roadmap, and it's a fun one to explain. 😄
 
-## 🛣️ Roadmap
+☁️ Deployment (AWS + Terraform)
 
-- [x] FastAPI backend with validation
-- [x] Ticket-style web page
-- [x] Docker + PostgreSQL
-- [x] Tests + GitHub Actions CI
-- [ ] 🔐 Sign in with Google (SSO), so RSVPs are tied to real accounts
-- [ ] ☁️ Deploy to AWS with Terraform (Infrastructure as Code)
-- [ ] 🔒 Race-proof last-seat booking
-- [ ] 📧 Reminder emails the day before
+The live app runs on one AWS EC2 server, and every piece of it is created by Terraform:
+
+infra/
+├── main.tf            # VPC, subnet, firewall, fixed IP, EC2 server
+├── variables.tf       # inputs (region, repo, secrets)
+├── outputs.tf         # prints the app URL
+└── user_data.sh.tpl   # first-boot script: install Docker, clone, start
+Server: EC2 t4g.small (ARM), Ubuntu 24.04, encrypted disk, IMDSv2 required
+Firewall: HTTPS open to everyone, SSH only from my IP
+HTTPS: Caddy with automatic Let's Encrypt certificates
+Containers: app + PostgreSQL + Caddy via Docker Compose, auto-restart on failure
+bash
+cd infra
+cp terraform.tfvars.example terraform.tfvars   # fill in your values
+terraform init
+terraform apply     # creates everything (~10 min until the site is up)
+terraform destroy   # removes everything
+🧪 Tests
+bash
+pip install -r requirements-dev.txt
+pytest -v
+
+15 tests check the important rules: you must be signed in to host or RSVP, duplicates are blocked, full events refuse new RSVPs, attendee emails are never exposed, and bad input is rejected. Sign-in is faked in tests with FastAPI dependency overrides, so they run in under a second without calling Google.
+
+GitHub Actions runs them on every push, and the Docker image is only built if they pass. 🟢
+
+🛣️ Roadmap
+[x] FastAPI backend with validation
+[x] Ticket-style web page
+[x] Docker + PostgreSQL
+[x] Tests + GitHub Actions CI
+[x] 🔐 Sign in with Google (SSO)
+[x] ☁️ Deploy to AWS with Terraform (Infrastructure as Code)
+[ ] 🔒 Race-proof last-seat booking
+[ ] 💾 Automatic database backups
+[ ] 🚚 Auto-deploy to AWS when CI passes (CD)
+[ ] 📧 Reminder emails the day before
+
+🌐 Live demo: https://16-178-40-31.sslip.io
 
 ## 🙏 Notes
 
