@@ -120,59 +120,96 @@ pytest -v
 
 Full interactive docs live at `/docs` once the app is running.
 
-## 🤔 Design decisions & trade-offs
-
-**Duplicates are blocked by the database, not just by Python.**
-A `UNIQUE (event_id, email)` constraint means that even if two requests arrive at the exact same moment, the database accepts one and rejects the other. Checking only in Python could let both slip through.
-
-**Emails are lowercased before saving.**
-So `Meghana@x.com` and `meghana@x.com` are the same person.
-
-**User text is never inserted as raw HTML.**
-Names and titles go into the page with `textContent`, so nobody can sneak a `<script>` in as their name. 🛡️
-
-**Known trade-off: the seat check isn't fully race-proof yet.**
-If two *different* people grab the very last seat at the same instant, both could get in. The fix is a row lock (`SELECT ... FOR UPDATE`) or an atomic counter in PostgreSQL. It's on the roadmap, and it's a fun one to explain. 😄
-
-☁️ Deployment (AWS + Terraform)
+## ☁️ Deployment (AWS + Terraform)
 
 The live app runs on one AWS EC2 server, and every piece of it is created by Terraform:
 
+```
 infra/
 ├── main.tf            # VPC, subnet, firewall, fixed IP, EC2 server
 ├── variables.tf       # inputs (region, repo, secrets)
 ├── outputs.tf         # prints the app URL
 └── user_data.sh.tpl   # first-boot script: install Docker, clone, start
-Server: EC2 t4g.small (ARM), Ubuntu 24.04, encrypted disk, IMDSv2 required
-Firewall: HTTPS open to everyone, SSH only from my IP
-HTTPS: Caddy with automatic Let's Encrypt certificates
-Containers: app + PostgreSQL + Caddy via Docker Compose, auto-restart on failure
-bash
+```
+
+- **Server:** EC2 `t4g.small` (ARM), Ubuntu 24.04, encrypted disk, IMDSv2 required
+- **Firewall:** HTTPS open to everyone, SSH only from my IP
+- **HTTPS:** Caddy with automatic Let's Encrypt certificates
+- **Containers:** app + PostgreSQL + Caddy via Docker Compose, auto-restart on failure
+
+```bash
 cd infra
 cp terraform.tfvars.example terraform.tfvars   # fill in your values
 terraform init
 terraform apply     # creates everything (~10 min until the site is up)
 terraform destroy   # removes everything
-🧪 Tests
-bash
+```
+
+## 🧪 Tests
+
+```bash
 pip install -r requirements-dev.txt
 pytest -v
+```
 
 15 tests check the important rules: you must be signed in to host or RSVP, duplicates are blocked, full events refuse new RSVPs, attendee emails are never exposed, and bad input is rejected. Sign-in is faked in tests with FastAPI dependency overrides, so they run in under a second without calling Google.
 
 GitHub Actions runs them on every push, and the Docker image is only built if they pass. 🟢
 
-🛣️ Roadmap
-[x] FastAPI backend with validation
-[x] Ticket-style web page
-[x] Docker + PostgreSQL
-[x] Tests + GitHub Actions CI
-[x] 🔐 Sign in with Google (SSO)
-[x] ☁️ Deploy to AWS with Terraform (Infrastructure as Code)
-[ ] 🔒 Race-proof last-seat booking
-[ ] 💾 Automatic database backups
-[ ] 🚚 Auto-deploy to AWS when CI passes (CD)
-[ ] 📧 Reminder emails the day before
+## 🔌 API
+
+| Method | Endpoint | What it does |
+|---|---|---|
+| `GET` | `/health` | "Are you alive?" "Yes." 💓 |
+| `GET` | `/login` | Start Google sign-in |
+| `GET` | `/me` | Who's signed in |
+| `POST` | `/logout` | Sign out |
+| `POST` | `/events` | Create an event 🔐 |
+| `GET` | `/events` | List events, soonest first |
+| `GET` | `/events/{id}` | One event, with seats left |
+| `POST` | `/events/{id}/rsvp` | Reserve a seat 🔐 |
+| `GET` | `/events/{id}/attendees` | Who's coming (names only) |
+
+🔐 = requires sign-in. Full interactive docs live at `/docs`.
+
+## 🤔 Design decisions & trade-offs
+
+**Identity comes from Google, not from a form.**
+Sign-in uses OpenID Connect, and only verified Google emails are accepted. The app never sees passwords, and nobody can RSVP with someone else's email.
+
+**Sessions are signed cookies.**
+The signed-in user is stored in a cookie sealed with a secret key, so it can't be edited. Cookies are `SameSite=Lax`, and `Secure` (HTTPS-only) in production.
+
+**Duplicates are blocked by the database, not just by Python.**
+A `UNIQUE (event_id, email)` constraint means that even if two requests arrive at the exact same moment, the database accepts one and rejects the other.
+
+**Attendee emails are never public.**
+The attendee list returns names only.
+
+**User text is never inserted as raw HTML.**
+Names and titles go into the page with `textContent`, so nobody can sneak a `<script>` in as an event title. 🛡️
+
+**Secrets stay out of the repo.**
+Google keys and the session secret live in `.env` / `terraform.tfvars`, both git-ignored.
+
+**Known trade-off: the last seat isn't fully race-proof yet.**
+If two *different* people grab the very last seat at the same instant, both could get in. The fix is a row lock (`SELECT ... FOR UPDATE`) or an atomic counter in PostgreSQL. It's on the roadmap. 😄
+
+**Known trade-off: one server.**
+Simple and cheap, but if it goes down, the site goes down. At larger scale: a load balancer, several app containers (ECS/Kubernetes) and managed PostgreSQL (RDS) with backups.
+
+## 🛣️ Roadmap
+
+- [x] FastAPI backend with validation
+- [x] Ticket-style web page
+- [x] Docker + PostgreSQL
+- [x] Tests + GitHub Actions CI
+- [x] 🔐 Sign in with Google (SSO)
+- [x] ☁️ Deploy to AWS with Terraform (Infrastructure as Code)
+- [ ] 🔒 Race-proof last-seat booking
+- [ ] 💾 Automatic database backups
+- [ ] 🚚 Auto-deploy to AWS when CI passes (CD)
+- [ ] 📧 Reminder emails the day before
 
 🌐 Live demo: https://16-178-40-31.sslip.io
 
